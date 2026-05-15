@@ -1,0 +1,64 @@
+// Auto-converted from /tmp/df-itertools-0.14.0/itertools-0.14.0/src/process_results_impl.rs
+
+#[cfg(doc)] use crate::Itertools;
+/// An iterator that produces only the `T` values as long as the
+/// inner iterator produces `Ok(T)`.
+/// 
+/// Used by [`process_results`](crate::process_results), see its docs
+/// for more information.
+#[must_use = "iterator adaptors are lazy and do nothing unless consumed"]
+#[derive(Debug)]
+pub struct ProcessResults<a, I, E: a> {
+ error: &mut Result<(), E>,
+ iter: I,
+}
+
+impl<I, E> ProcessResults<'_, I, E> {
+ fn next_body(&mut self, item: Option<Result<T, E>>) -> Option<T> {
+ match item { Some(Ok(x)) => Some(x), Some(Err(e)) => { *self.error = Err(e); None } None => None }
+ }
+ 
+}
+
+impl<I, T, E> Iterator for ProcessResults<'_, I, E> where I: Iterator<_> {
+ type Item = T;
+ fn next(&mut self) -> Option<Self::Item> {
+ let item = self.iter.next();
+ self.next_body(item)
+ }
+ 
+ fn size_hint(&self) ->(usize, Option<usize>) {
+ (0, self.iter.size_hint().1)
+ }
+ 
+ fn fold(self, init: B, f: F) -> B {
+ let error = self.error;
+ self.iter.try_fold(init, | acc, opt | match opt { Ok(x) => Ok(f(acc, x)), Err(e) => { *error = Err(e); Err(acc) } }).unwrap_or_else(| e | e)
+ }
+ 
+}
+
+impl<I, T, E> DoubleEndedIterator for ProcessResults<'_, I, E> where I: Iterator<_>, I: DoubleEndedIterator {
+ fn next_back(&mut self) -> Option<Self::Item> {
+ let item = self.iter.next_back();
+ self.next_body(item)
+ }
+ 
+ fn rfold(self, init: B, f: F) -> B {
+ let error = self.error;
+ self.iter.try_rfold(init, | acc, opt | match opt { Ok(x) => Ok(f(acc, x)), Err(e) => { *error = Err(e); Err(acc) } }).unwrap_or_else(| e | e)
+ }
+ 
+}
+
+/// “Lift” a function of the values of an iterator so that it can process
+/// an iterator of `Result` values instead.
+/// 
+/// [`IntoIterator`] enabled version of [`Itertools::process_results`].
+pub fn process_results<I, F, T, E, R>(iterable: I, processor: F) -> Result<R, E> where I: IntoIterator<_>, F: FnOnce {
+ let iter = iterable.into_iter();
+ let mut error = Ok(());
+ let result = processor(ProcessResults { error: &mut error, iter });
+ error.map(| _ | result)
+}
+

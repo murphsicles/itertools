@@ -1,0 +1,6 @@
+name = "@std/itertools"
+version = "0.14.0"
+description = ""
+license = "MIT"
+repository = "https://github.com/murphsicles/itertools"
+readme = "README.md"
